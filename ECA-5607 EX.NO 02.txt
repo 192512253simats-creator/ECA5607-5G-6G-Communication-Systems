@@ -1,0 +1,135 @@
+
+% Experiment 2: Simplified Hexagonal Coverage and Handoff
+clc;
+clear;
+close all;
+
+%% 1. Baseline Assumptions
+serviceAreaKm2 = 5;
+radiiKm = [1.0 0.5];
+usersPerCell = 30;
+
+% Area of a regular hexagonal cell
+hexArea = @(R) (3 * sqrt(3) / 2) .* R.^2;
+
+% Calculate cell area, number of cells, and estimated users
+cellAreaKm2 = hexArea(radiiKm);
+cellCount = ceil(serviceAreaKm2 ./ cellAreaKm2);
+estimatedUsers = cellCount .* usersPerCell;
+
+% Display capacity table
+capacityTable = table( ...
+    radiiKm(:), ...
+    cellAreaKm2(:), ...
+    cellCount(:), ...
+    repmat(usersPerCell, numel(radiiKm), 1), ...
+    estimatedUsers(:), ...
+    'VariableNames', { ...
+    'Radius_km', ...
+    'CellArea_km2', ...
+    'EstimatedCells', ...
+    'UsersPerCell', ...
+    'IllustrativeUsers'});
+
+disp('Hexagonal Coverage and Capacity Results:');
+disp(capacityTable);
+
+%% 2. Plot a Seven-Cell Hexagonal Cluster
+R = radiiKm(1);
+
+% Central cell and six neighboring cell centers
+centers = [
+     0,                 0;
+     1.5*R,             sqrt(3)*R/2;
+     1.5*R,            -sqrt(3)*R/2;
+     0,                 sqrt(3)*R;
+     0,                -sqrt(3)*R;
+    -1.5*R,             sqrt(3)*R/2;
+    -1.5*R,            -sqrt(3)*R/2
+];
+
+% Close the hexagon by repeating the first vertex
+theta = (0:6) * pi/3;
+
+figure;
+hold on;
+axis equal;
+grid on;
+
+for k = 1:size(centers, 1)
+    xHex = centers(k,1) + R*cos(theta);
+    yHex = centers(k,2) + R*sin(theta);
+
+    plot(xHex, yHex, 'k-', 'LineWidth', 1.2);
+
+    text(centers(k,1), centers(k,2), ...
+        sprintf('Cell %d', k), ...
+        'HorizontalAlignment', 'center');
+end
+
+xlabel('x (km)');
+ylabel('y (km)');
+title('Idealized Seven-Cell Hexagonal Cluster');
+hold off;
+
+%% 3. Simulate Mobile Movement and Handoff
+% Mobile moves along the x-axis between two cell centers
+mobileX = linspace(-0.2*R, 1.7*R, 300);
+mobileY = zeros(size(mobileX));
+
+% Distance from mobile to each cell center
+d1 = hypot(mobileX - centers(1,1), ...
+           mobileY - centers(1,2));
+
+d2 = hypot(mobileX - centers(2,1), ...
+           mobileY - centers(2,2));
+
+% Nearest-center serving-cell selection
+servingCell = ones(size(mobileX));
+servingCell(d2 < d1) = 2;
+
+% Detect the first handoff
+handoffIndex = find(diff(servingCell) ~= 0, 1, 'first');
+
+if ~isempty(handoffIndex)
+    handoffIndex = handoffIndex + 1;
+    handoffX = mobileX(handoffIndex);
+else
+    handoffX = NaN;
+end
+
+%% 4. Plot Distance to Cell Centers
+figure;
+hold on;
+grid on;
+
+plot(mobileX, d1, 'b-', 'LineWidth', 1.5);
+plot(mobileX, d2, 'm-', 'LineWidth', 1.5);
+
+if ~isnan(handoffX)
+    xline(handoffX, '--r', 'Handoff decision');
+end
+
+xlabel('Mobile x-position (km)');
+ylabel('Distance to cell center (km)');
+legend('Cell 1', 'Cell 2', 'Location', 'best');
+title('Nearest-Center Handoff Approximation');
+hold off;
+
+%% 5. Plot Serving Cell Along the Mobile Path
+figure;
+stairs(mobileX, servingCell, 'LineWidth', 1.5);
+grid on;
+
+xlabel('Mobile x-position (km)');
+ylabel('Serving-cell ID');
+yticks([1 2]);
+ylim([0.5 2.5]);
+title('Serving Cell Along the Mobile Path');
+
+%% 6. Display Handoff Result
+if ~isnan(handoffX)
+    fprintf('Geometric handoff at x = %.3f km\n', handoffX);
+else
+    fprintf('No handoff occurred along the mobile path.\n');
+end
